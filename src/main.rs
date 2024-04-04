@@ -376,7 +376,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
 
         for data in data_vec {
             let mut vessel_json = json!(&data);
-            vessel_json["durations"] = json!(duration_str);
+            vessel_json["ais_durations"] = json!(duration_str);
             json_data.push(vessel_json);
         }
     }
