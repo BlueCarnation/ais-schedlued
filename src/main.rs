@@ -228,10 +228,19 @@ fn serialize_vessel_data(parser: &mut NmeaParser, sentences: &str) -> String {
 
 fn run_ais_catcher() -> Result<String, std::io::Error> {
     // Run the command
-    let child = Command::new("sh")
-        .arg("-c")
-        .arg("./build/AIS-catcher -l > aisOutput.txt 2>&1")
-        .spawn();
+    let mut child = Command::new("docker")
+        .arg("run")
+        .arg("--rm")
+        .arg("-it")
+        .arg("--pull")
+        .arg("always")
+        .arg("--device")
+        .arg("/dev/bus/usb")
+        .arg("ghcr.io/jvde-github/ais-catcher:latest")
+        .arg("-o")
+        .arg("1")
+        .stdout(Stdio::piped())
+        .spawn()?;
 
     match child {
         Ok(mut child) => {
@@ -254,9 +263,18 @@ fn run_ais_catcher() -> Result<String, std::io::Error> {
 
 async fn run_ais_catcher_programmed(duration: u64) -> Result<String, std::io::Error> {
     // Démarre AIS-catcher en arrière-plan
-    let mut child = Command::new("./build/AIS-catcher")
-        .arg("-l")
-        .stdout(Stdio::piped()) // Rediriger la sortie standard si nécessaire
+    let mut child = Command::new("docker")
+        .arg("run")
+        .arg("--rm")
+        .arg("-it")
+        .arg("--pull")
+        .arg("always")
+        .arg("--device")
+        .arg("/dev/bus/usb")
+        .arg("ghcr.io/jvde-github/ais-catcher:latest")
+        .arg("-o")
+        .arg("1")
+        .stdout(Stdio::piped())
         .spawn()?;
 
     // Attend la durée spécifiée
