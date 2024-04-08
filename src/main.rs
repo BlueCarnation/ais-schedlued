@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 use std::{thread, time::Duration};
 use std::fs;
 use std::fs::File;
-use std::io::{Write, Read};
+use std::io::{self, Write, Read};
 use std::fmt::Display;
 use std::thread::sleep;
 
@@ -226,8 +226,8 @@ fn serialize_vessel_data(parser: &mut NmeaParser, sentences: &str) -> String {
     }
 }
 
-fn run_ais_catcher() -> Result<String, std::io::Error> {
-    // Run the command
+fn run_ais_catcher() -> Result<String, io::Error> {
+    // Run the Docker command
     let mut child = Command::new("docker")
         .arg("run")
         .arg("--rm")
@@ -242,27 +242,23 @@ fn run_ais_catcher() -> Result<String, std::io::Error> {
         .stdout(Stdio::piped())
         .spawn()?;
 
-    match child {
-        Ok(mut child) => {
-            // Wait for 30 seconds
-            sleep(Duration::from_secs(30));
+    // Wait for 30 seconds
+    sleep(Duration::from_secs(30));
 
-            // Kill the command
-            match child.kill() {
-                Ok(_) => {
-                    // Read the file
-                    let contents = fs::read_to_string("aisOutput.txt")?;
-                    Ok(contents)
-                },
-                Err(e) => Err(e),
-            }
-        },
+    // Kill the command
+    match child.kill() {
+        Ok(_) => {
+            // Read the output from stdout
+            let output = child.wait_with_output()?;
+            let contents = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(contents)
+        }
         Err(e) => Err(e),
     }
 }
 
-async fn run_ais_catcher_programmed(duration: u64) -> Result<String, std::io::Error> {
-    // Démarre AIS-catcher en arrière-plan
+async fn run_ais_catcher_programmed(duration: u64) -> Result<String, io::Error> {
+    // Start AIS-catcher in the background
     let mut child = Command::new("docker")
         .arg("run")
         .arg("--rm")
@@ -277,19 +273,16 @@ async fn run_ais_catcher_programmed(duration: u64) -> Result<String, std::io::Er
         .stdout(Stdio::piped())
         .spawn()?;
 
-    // Attend la durée spécifiée
-    sleep(Duration::from_secs(duration));
+    // Wait for the specified duration
+    tokio::time::sleep(Duration::from_secs(duration)).await;
 
-    // Tente de terminer le processus proprement
-    match child.kill() {
-        Ok(_) => println!("AIS-catcher process was terminated."),
-        Err(e) => println!("Failed to terminate AIS-catcher process: {}", e),
-    }
+    // Terminate the process
+    let _ = child.kill();
 
-    // Attendre la fin du processus et récupérer la sortie
+    // Wait for the process to finish and retrieve the output
     let output = child.wait_with_output()?;
 
-    // Convertir la sortie en String
+    // Convert the output to String
     let output_str = String::from_utf8_lossy(&output.stdout).to_string();
 
     Ok(output_str)
