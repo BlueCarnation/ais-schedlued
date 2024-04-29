@@ -127,6 +127,7 @@ struct SerializedVesselDynamicData {
     special_manoeuvre: Option<bool>,
     station: Option<StationWrapper>,
     timestamp_seconds: u8,
+    ais_durations: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -334,6 +335,29 @@ pub async fn run_ais_script() -> Result<bool, Box<dyn std::error::Error>> {
 
 }
 
+fn calculate_intervals(timestamps: &HashSet<u8>) -> Vec<String> {
+    let mut sorted_timestamps: Vec<&u8> = timestamps.iter().collect();
+    sorted_timestamps.sort_unstable();
+
+    let mut intervals = vec![];
+    let mut start = *sorted_timestamps.first().unwrap();
+    let mut end = start;
+
+    for &time in sorted_timestamps.iter().skip(1) {
+        if time == end + 1 {
+            end = time;
+        } else {
+            intervals.push(format!("{}-{}", start, end));
+            start = time;
+            end = start;
+        }
+    }
+
+    intervals.push(format!("{}-{}", start, end)); 
+    intervals
+}
+
+
 pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Result<bool, Box<dyn std::error::Error>> {
     println!("Waiting for {} seconds before starting...", start_after);
     thread::sleep(Duration::from_secs(start_after));
@@ -372,6 +396,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
                 special_manoeuvre: vdd.special_manoeuvre,
                 station: Some(StationWrapper(vdd.station)),
                 timestamp_seconds: vdd.timestamp_seconds,
+                ais_durations: vec![],
             };
 
             results_map.entry(mmsi_str).or_insert_with(Vec::new).push(serialized_data);
@@ -380,15 +405,10 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
 
     // Conversion des données et des durées en JSON, avec ajout des durées
     let mut json_data = Vec::new();
-    for (mmsi, data_vec) in results_map {
-        let durations = vessel_timestamps.get(&mmsi).unwrap();
-        // Simplification: calcul des durées en supposant des intervalles de 1 seconde pour chaque timestamp
-        let duration_str = durations.iter().map(|t| format!("{}", t)).collect::<Vec<_>>().join(", ");
-
-        for data in data_vec {
-            let mut vessel_json = json!(&data);
-            vessel_json["ais_durations"] = json!(duration_str);
-            json_data.push(vessel_json);
+    for (mmsi, data_vec) in &mut results_map {
+        let intervals = calculate_intervals(vessel_timestamps.get(mmsi).unwrap());
+        for data in data_vec.iter_mut() {
+            data.ais_durations = intervals.clone();  // Clone the intervals into each data entry
         }
     }
 
