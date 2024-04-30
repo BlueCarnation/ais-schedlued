@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use std::process::{Command, Stdio};
 use std::{thread, time::Duration};
-use std::fs;
+use std::{fs, vec};
 use std::fs::File;
 use std::io::{self, Write, Read};
 use std::fmt::Display;
@@ -218,6 +218,7 @@ fn serialize_vessel_data(parser: &mut NmeaParser, sentences: &str) -> String {
                 special_manoeuvre: vdd.special_manoeuvre,
                 station: Some(StationWrapper(vdd.station)),
                 timestamp_seconds: vdd.timestamp_seconds,
+                ais_durations: vec![],
             };
             serde_json::to_string_pretty(&serializable_parsed_message).unwrap()
         }
@@ -340,15 +341,15 @@ fn calculate_intervals(timestamps: &HashSet<u8>) -> Vec<String> {
     sorted_timestamps.sort_unstable();
 
     let mut intervals = vec![];
-    let mut start = *sorted_timestamps.first().unwrap();
+    let mut start = **sorted_timestamps.first().unwrap();
     let mut end = start;
 
     for &time in sorted_timestamps.iter().skip(1) {
-        if time == end + 1 {
-            end = time;
+        if *time == end + 1 {
+            end = *time;
         } else {
             intervals.push(format!("{}-{}", start, end));
-            start = time;
+            start = *time;
             end = start;
         }
     }
@@ -404,7 +405,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
     }
 
     // Conversion des données et des durées en JSON, avec ajout des durées
-    let mut json_data = Vec::new();
+    let mut json_data: HashMap<String, Vec<SerializedVesselDynamicData>> = HashMap::new(); // Use the correct type here based on actual data structure used above
     for (mmsi, data_vec) in &mut results_map {
         let intervals = calculate_intervals(vessel_timestamps.get(mmsi).unwrap());
         for data in data_vec.iter_mut() {

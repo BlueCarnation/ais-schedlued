@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ais"
+name = "ais_module"
 version = "0.1.0"
 dependencies = [
  "futures",
