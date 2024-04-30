@@ -1,6 +1,0 @@
-AIS-catcher (build Mar 28 2024) v0.58-38-g27a79898
-(C) Copyright 2021-2023 jvde-github and other contributors
-This is free software; see the source for copying conditions.There is NO
-warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-Found 1 device(s):
-0: HACKRF, Great Scott Gadgets, SN: 0000000000000000325866e629940f23
