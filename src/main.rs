@@ -326,7 +326,7 @@ pub async fn run_ais_script() -> Result<bool, Box<dyn std::error::Error>> {
     let json = serde_json::to_string_pretty(&results_map).unwrap();
     println!("{}", json);
 
-    write_json_to_file(&json, "ais_data.json")?;
+    write_json_to_file(&json, "ais_instantdata.json")?;
 
     if json == "{}" {
         Ok(false)
@@ -414,7 +414,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
     }
 
     let json = serde_json::to_string_pretty(&json_data)?;
-    write_json_to_file(&json, "ais_data_programmed.json")?;
+    write_json_to_file(&json, "ais_scheduleddata.json")?;
     Ok(true)
 }
 
