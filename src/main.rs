@@ -172,6 +172,11 @@ struct VesselData {
     timestamp_seconds: f64,
 }
 
+#[derive(Serialize, Default)]
+struct VesselDataWrapper {
+    vessels: Vec<SerializedVesselDynamicData>
+}
+
 fn serialize_option_as_string<T, S>(opt: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
 where
     T: Display,
@@ -230,15 +235,7 @@ fn serialize_vessel_data(parser: &mut NmeaParser, sentences: &str) -> String {
 
 fn run_ais_catcher() -> Result<String, io::Error> {
     // Run the Docker command
-    let mut child = Command::new("docker")
-        .arg("run")
-        .arg("--rm")
-        .arg("-it")
-        .arg("--pull")
-        .arg("always")
-        .arg("--device")
-        .arg("/dev/bus/usb")
-        .arg("ghcr.io/jvde-github/ais-catcher:latest")
+    let mut child = Command::new("/ais-catcher/AIS-catcher")
         .arg("-o")
         .arg("1")
         .stdout(Stdio::piped())
@@ -261,15 +258,7 @@ fn run_ais_catcher() -> Result<String, io::Error> {
 
 async fn run_ais_catcher_programmed(duration: u64) -> Result<String, io::Error> {
     // Start AIS-catcher in the background
-    let mut child = Command::new("docker")
-        .arg("run")
-        .arg("--rm")
-        .arg("-it")
-        .arg("--pull")
-        .arg("always")
-        .arg("--device")
-        .arg("/dev/bus/usb")
-        .arg("ghcr.io/jvde-github/ais-catcher:latest")
+    let mut child = Command::new("/ais-catcher/AIS-catcher")
         .arg("-o")
         .arg("1")
         .stdout(Stdio::piped())
@@ -367,7 +356,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
     let ais_output = run_ais_catcher_programmed(duration).await?;
 
     let results = extract_nmea_trams(&ais_output);
-    let mut results_map: HashMap<String, Vec<SerializedVesselDynamicData>> = HashMap::new();
+    let mut results_map: HashMap<String, VesselDataWrapper> = HashMap::new();
     let mut vessel_timestamps: HashMap<String, HashSet<u8>> = HashMap::new();
 
     for result in results.iter() {
@@ -378,7 +367,10 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
             // Calcul des durées basé sur les timestamps
             vessel_timestamps.entry(mmsi_str.clone()).or_insert_with(HashSet::new).insert(vdd.timestamp_seconds);
 
-            let mut serialized_data = SerializedVesselDynamicData {
+            // Assign intervals right here to avoid creating a separate loop
+            let intervals = calculate_intervals(vessel_timestamps.entry(mmsi_str.clone()).or_insert_with(HashSet::new));
+
+            let serialized_data = SerializedVesselDynamicData {
                 own_vessel: Some(vdd.own_vessel),
                 mmsi: vdd.mmsi,
                 cog: vdd.cog.unwrap_or_default(),
@@ -397,15 +389,9 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
                 special_manoeuvre: vdd.special_manoeuvre,
                 station: Some(StationWrapper(vdd.station)),
                 timestamp_seconds: vdd.timestamp_seconds,
-                ais_durations: vec![],
+                ais_durations: intervals,
             };
-
-            // Assign intervals right here to avoid creating a separate loop
-            let intervals = calculate_intervals(vessel_timestamps.get(&mmsi_str).unwrap());
-            serialized_data.ais_durations = intervals;
-            
-            // Directly place the object instead of pushing to a vector
-            results_map.entry(mmsi_str).or_insert_with(Vec::new).push(serialized_data);        
+            results_map.entry(mmsi_str).or_default().vessels.push(serialized_data);
         }
     }
 
