@@ -378,7 +378,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
             // Calcul des durées basé sur les timestamps
             vessel_timestamps.entry(mmsi_str.clone()).or_insert_with(HashSet::new).insert(vdd.timestamp_seconds);
 
-            let serialized_data = SerializedVesselDynamicData {
+            let mut serialized_data = SerializedVesselDynamicData {
                 own_vessel: Some(vdd.own_vessel),
                 mmsi: vdd.mmsi,
                 cog: vdd.cog.unwrap_or_default(),
@@ -400,20 +400,16 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
                 ais_durations: vec![],
             };
 
-            results_map.entry(mmsi_str).or_insert_with(Vec::new).push(serialized_data);
+            // Assign intervals right here to avoid creating a separate loop
+            let intervals = calculate_intervals(vessel_timestamps.get(&mmsi_str).unwrap());
+            serialized_data.ais_durations = intervals;
+            
+            // Directly place the object instead of pushing to a vector
+            results_map.entry(mmsi_str).or_insert_with(Vec::new).push(serialized_data);        
         }
     }
 
-    // Conversion des données et des durées en JSON, avec ajout des durées
-    let mut json_data: HashMap<String, Vec<SerializedVesselDynamicData>> = HashMap::new(); // Use the correct type here based on actual data structure used above
-    for (mmsi, data_vec) in &mut results_map {
-        let intervals = calculate_intervals(vessel_timestamps.get(mmsi).unwrap());
-        for data in data_vec.iter_mut() {
-            data.ais_durations = intervals.clone();  // Clone the intervals into each data entry
-        }
-    }
-
-    let json = serde_json::to_string_pretty(&json_data)?;
+    let json = serde_json::to_string_pretty(&results_map)?;
     write_json_to_file(&json, "ais_scheduleddata.json")?;
     Ok(true)
 }
