@@ -356,7 +356,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
     let ais_output = run_ais_catcher_programmed(duration).await?;
 
     let results = extract_nmea_trams(&ais_output);
-    let mut results_map: HashMap<String, VesselDataWrapper> = HashMap::new();
+    let mut results_map: HashMap<String, SerializedVesselDynamicData> = HashMap::new();
     let mut vessel_timestamps: HashMap<String, HashSet<u8>> = HashMap::new();
 
     for result in results.iter() {
@@ -364,11 +364,9 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
         if let Ok(ParsedMessage::VesselDynamicData(vdd)) = parser.parse_sentence(result) {
             let mmsi_str = vdd.mmsi.to_string();
 
-            // Calcul des durées basé sur les timestamps
-            vessel_timestamps.entry(mmsi_str.clone()).or_insert_with(HashSet::new).insert(vdd.timestamp_seconds);
-
-            // Assign intervals right here to avoid creating a separate loop
-            let intervals = calculate_intervals(vessel_timestamps.entry(mmsi_str.clone()).or_insert_with(HashSet::new));
+            let intervals = calculate_intervals(
+                vessel_timestamps.entry(mmsi_str.clone()).or_insert_with(HashSet::new)
+            );
 
             let serialized_data = SerializedVesselDynamicData {
                 own_vessel: Some(vdd.own_vessel),
@@ -389,9 +387,10 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
                 special_manoeuvre: vdd.special_manoeuvre,
                 station: Some(StationWrapper(vdd.station)),
                 timestamp_seconds: vdd.timestamp_seconds,
-                ais_durations: intervals,
+                ais_durations: intervals.clone(),
             };
-            results_map.entry(mmsi_str).or_default().vessels.push(serialized_data);
+
+            results_map.insert(mmsi_str, serialized_data);
         }
     }
 
@@ -399,6 +398,7 @@ pub async fn run_ais_script_programmed(start_after: u64, duration: u64) -> Resul
     write_json_to_file(&json, "ais_scheduleddata.json")?;
     Ok(true)
 }
+
 
 fn write_json_to_file(json_data: &str, filename: &str) -> Result<(), std::io::Error> {
     let mut file = File::create(filename)?;
